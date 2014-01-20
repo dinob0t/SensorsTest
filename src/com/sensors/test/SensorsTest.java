@@ -13,13 +13,13 @@ import java.text.DecimalFormat;
 import com.androidplot.xy.*;
 import android.graphics.Color;
 import java.util.Arrays;
-
+import edu.emory.mathcs.jtransforms.fft.*;
 
 
 public class SensorsTest extends Activity implements SensorEventListener {
 
     private static final int INTEGRATION_SAMPLES = 256; //how many samples
-    private static final int SAMPLE_INTERVAL = 5000; //sample interval in microseconds
+    private static final int SAMPLE_INTERVAL = 10000; //sample interval in microseconds
     private static final int SIGNAL_INTEREST = 50; //50 Hz signal is of interest
 
 
@@ -50,6 +50,7 @@ public class SensorsTest extends Activity implements SensorEventListener {
     double[] sampleArray = new double[INTEGRATION_SAMPLES];
     double[] realfftArray = new double[INTEGRATION_SAMPLES];
     double[] imagfftArray = new double[INTEGRATION_SAMPLES];
+    double[] window = new double[INTEGRATION_SAMPLES];
     Number[] yseries1 = new Number[INTEGRATION_SAMPLES];
     //Number[] xseries1 = new Number[INTEGRATION_SAMPLES];
     Number[] yseries2 = new Number[INTEGRATION_SAMPLES];
@@ -108,9 +109,17 @@ public class SensorsTest extends Activity implements SensorEventListener {
         aprTotalFieldPlot.getRangeLabelWidget().pack();
         aprTotalFieldPlot.setGridPadding(15, 0, 15, 0);
         
-        //for (int i = 0; i < INTEGRATION_SAMPLES; i++) {
+        
+        //set up hanning window
+        double window_sum = 0.0;
+        for (int i = 0; i < INTEGRATION_SAMPLES; i++) {
         	//xseries1[i] = i*SAMPLE_INTERVAL/1000000	;
-    	  //}
+        	window[i] = 0.5 + 0.5*Math.cos(Math.PI*(-1+2*(i-1)/INTEGRATION_SAMPLES));
+        	window_sum = window_sum + window[i];
+    	  }
+        for (int i = 0; i < INTEGRATION_SAMPLES; i++) {
+        	window[i] = INTEGRATION_SAMPLES*window[i]/(window_sum);
+    	  }
         aprFFTPlot = (XYPlot) findViewById(R.id.aprFFTPlot);
         aprFFTSeries = new SimpleXYSeries("Total Field");
         aprFFTSeries.useImplicitXVals();
@@ -123,7 +132,7 @@ public class SensorsTest extends Activity implements SensorEventListener {
         
         aprFFTPlot.setDomainStepValue(3);
         aprFFTPlot.setTicksPerRangeLabel(3);
-        aprFFTPlot.setRangeBoundaries(-40, 0, BoundaryMode.FIXED);
+        aprFFTPlot.setRangeBoundaries(-40, 20, BoundaryMode.FIXED);
         aprFFTPlot.setDomainBoundaries(0, 1+INTEGRATION_SAMPLES/2, BoundaryMode.FIXED);
         // use our custom domain value formatter:
         //aprTotalFieldPlot.setDomainValueFormat(new APRIndexFormat());
@@ -172,18 +181,24 @@ public class SensorsTest extends Activity implements SensorEventListener {
                     return;
                 }
                 samples = -1;
-                FFT calcfft = new FFT(INTEGRATION_SAMPLES);
+                //FFT calcfft = new FFT(INTEGRATION_SAMPLES);
                 
                 
                 for (int i = 0; i < INTEGRATION_SAMPLES; i++) {
                 	yseries1[i] = (Number) sampleArray[i];
             	  }
  
-
+                DoubleFFT_1D fft = new DoubleFFT_1D(INTEGRATION_SAMPLES);
                 
-                realfftArray = sampleArray;                               
-                imagfftArray = new double[INTEGRATION_SAMPLES];
-                calcfft.fft(realfftArray,imagfftArray);
+                //multiply by window
+                for (int i = 0; i < INTEGRATION_SAMPLES; i++) {
+                	realfftArray[i] = sampleArray[i]*window[i];
+            	  }
+
+                fft.realForward(realfftArray);
+                              
+                //imagfftArray = new double[INTEGRATION_SAMPLES];
+                //calcfft.fft(realfftArray,imagfftArray);
                 
                 for (int i = 0; i < 1+INTEGRATION_SAMPLES/2; i++) {
                 	double tmp = 0.000001*SAMPLE_INTERVAL*Math.pow(Math.abs(realfftArray[i]),2.0)/INTEGRATION_SAMPLES;
